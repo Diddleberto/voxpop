@@ -1,0 +1,352 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Vox Pop Generator</title>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        html, body {
+            height: 100%;
+            overflow: hidden;
+            font-family: Arial, sans-serif;
+            justify-content: center; 
+        }
+        body {
+            display: flex;
+            flex-direction: column;
+        }
+        canvas {
+            border: none;
+            flex: 1;
+            display: block;
+        }
+        .controls {
+            display: flex;
+            flex-direction: column;
+            padding: 10px;
+        }
+        .controls label {
+            display: block;
+            font-size: 14px;
+            margin-bottom: 5px;
+        }
+        .controls input[type="text"], .controls textarea {
+            width: 100%;
+            padding: 5px;
+            font-size: 14px;
+            margin-bottom: 10px;
+        }
+        .controls .line {
+            display: flex;
+            justify-content: space-between;
+            gap: 10px;
+        }
+    </style>
+</head>
+<body>
+    <canvas id="canvas"></canvas>
+    <div class="controls">
+        <div class="line">
+            <div>
+                <label for="name">Name</label>
+                <input type="text" id="name" maxlength="25">
+            </div>
+            <div>
+                <label for="occupation">Occupation</label>
+                <input type="text" id="occupation" maxlength="25">
+            </div>
+        </div>
+        <div>
+            <label for="response">Response</label>
+            <textarea id="response" maxlength="180"></textarea>
+        </div>
+    </div>
+    <script>
+        const id = Math.floor(Math.random() * 0xFFFFFFFF).toString(16).padStart(8, '0');
+        const canvas = document.getElementById('canvas');
+        const ctx = canvas.getContext('2d');
+        const response = document.getElementById('response');
+        const firstName = document.getElementById('name');
+        const occupation = document.getElementById('occupation');
+        let dpr = 1;
+        let factor = 1;
+        let image = null;
+
+        function resizeCanvas() {
+            dpr = window.devicePixelRatio || 1;
+            const width = window.innerWidth * dpr;
+            const height = (window.innerHeight - document.querySelector('.controls').clientHeight) * dpr;
+            factor = width/height > 3/4 ? 1365/height : 1024/width;
+            canvas.width = Math.ceil(width * factor);
+            canvas.height = Math.ceil(height * factor);
+            canvas.style.width = `${window.innerWidth}px`;
+            canvas.style.height = `${window.innerHeight - document.querySelector('.controls').clientHeight}px`;            
+            redrawCanvas();
+        }
+
+        function f(n) {
+            return n * factor;
+        }
+
+        function redrawCanvas() {
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+            if (!image) {
+                drawWelcome();
+                return;
+            }
+            drawVoxPop(ctx, canvas.width, canvas.height);
+            drawCopyButton(ctx, canvas.width - f(120), canvas.height - f(60));
+            drawSaveButton(ctx, canvas.width - f(60), canvas.height - f(60));
+        }
+
+        function drawWelcome() {
+            ctx.font = `italic 48px 'Trebuchet MS', 'Arial', sans-serif`;
+            ctx.textBaseline = 'top';
+            ctx.fillStyle = '#505050';
+            drawWelcomeLine('Click, paste, or drop an image', 520);
+            drawWelcomeLine('to start creating a vox pop!', 600);
+        }
+
+        function drawWelcomeLine(line, y) {
+            width = ctx.measureText(line).width;
+            ctx.fillText(line, canvas.width / 2 - width / 2, y);
+        }
+
+        function drawVoxPop(ctx, width, height) {
+            const props = getImageProperties(width, height);
+            ctx.fillStyle = 'black';
+            ctx.fillRect(props.indent[0], props.indent[1] + 1020, props.allSize[0], props.allSize[1] - 1020);
+            ctx.drawImage(image, 0, 0, image.width, image.height, props.indent[0], props.indent[1], props.imgSize, props.imgSize);
+            ctx.fillStyle = 'white';
+            ctx.textBaseline = 'top';
+            drawAttributionText(ctx, props.indent[0], props.indent[1]);
+            drawBodyText(ctx, props.indent[0], props.indent[1]);
+        }
+
+        function getImageProperties(width, height) {
+            const allSize = width/height < 3/4 ? [width, Math.floor(width / (3/4))] : [Math.floor(height * (3/4)), height];
+            const imgSize = Math.min(...allSize);
+            const indent = [Math.floor((width - allSize[0]) / 2), Math.floor((height - allSize[1]) / 2)];
+            return {allSize: allSize, imgSize: imgSize, indent: indent};
+        }
+
+        function drawAllText() {
+            if (image === null) return;
+            const props = getImageProperties(canvas.width, canvas.height);
+            if (props.indent[1] + 1245 >= canvas.height - 125) {
+                redrawCanvas();
+                return;
+            }
+            ctx.fillStyle = 'white';
+            ctx.fillRect(canvas.width - f(125), canvas.height - f(65), f(120), f(60));
+            ctx.fillStyle = 'black';
+            ctx.fillRect(props.indent[0], props.indent[1] + 1024, props.allSize[0], props.allSize[1] - 1024);
+            ctx.fillStyle = 'white';
+            ctx.textBaseline = 'top';
+            drawAttributionText(ctx, props.indent[0], props.indent[1]);
+            drawBodyText(ctx, props.indent[0], props.indent[1]);
+            drawCopyButton(ctx, canvas.width - f(120), canvas.height - f(60));
+            drawSaveButton(ctx, canvas.width - f(60), canvas.height - f(60));
+        }
+
+        function drawAttributionText(ctx, x, y) {
+            x += 970;
+            y += 1270;
+            const fontSize = 32;
+            let name = document.getElementById('name').value.trim();
+            let occupation = document.getElementById('occupation').value.trim();
+            if (name.length !== 0 && occupation.length !== 0) occupation = ' – ' + occupation;
+            else if (name.length !== 0 && occupation.length === 0) name = '– ' + name;
+            ctx.font = `italic ${fontSize}px 'Trebuchet MS', 'Arial', sans-serif`;
+            const occupationWidth = ctx.measureText(occupation).width;
+            ctx.fillText(occupation, x - occupationWidth, y);
+            ctx.font = `bold italic ${fontSize}px 'Trebuchet MS', 'Arial', sans-serif`;
+            const nameWidth = ctx.measureText(name).width;
+            ctx.fillText(name, x - occupationWidth - nameWidth - 2, y);
+
+        }
+
+        function drawBodyText(ctx, x, y) {
+            const fontSize = 32;
+            const lineHeight = fontSize * 1.7;
+            const lines = [];
+            let words = document.getElementById('response').value.trim().split(' '), line = '';
+
+            ctx.font = `${fontSize}px 'Trebuchet MS', 'Arial', sans-serif`;
+
+            words.forEach(word => {
+                const testLine = line + (line ? ' ' : '') + word;
+                if (ctx.measureText(testLine).width > 944) {
+                    if (testLine !== word) lines.push(line);
+                    line = word;
+                } else {
+                    line = testLine;
+                }
+            });
+
+            if (line) lines.push(line);
+
+            lines.forEach((line, i) => {
+                if (i * lineHeight < 200) {
+                    ctx.fillText(line, x + 40, y + 1066 + i * lineHeight);
+                }
+            });
+        }
+
+        function drawSaveButton(ctx, x, y) {
+            ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+            ctx.fillRect(x, y, f(50), f(50));
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = f(2);
+            ctx.beginPath();
+            ctx.moveTo(x + f(25), y + f(10));
+            ctx.lineTo(x + f(25), y + f(40));
+            ctx.moveTo(x + f(10), y + f(25));
+            ctx.lineTo(x + f(25), y + f(40));
+            ctx.lineTo(x + f(40), y + f(25));
+            ctx.stroke();
+        }
+
+        function drawCopyButton(ctx, x, y) {
+            ctx.fillStyle = 'rgba(128, 128, 128, 0.5)';
+            ctx.fillRect(x, y, f(50), f(50));
+            ctx.strokeStyle = 'black';
+            ctx.lineWidth = f(2);
+            ctx.beginPath();
+            ctx.moveTo(x + f(20), y + f(30));
+            ctx.lineTo(x + f(10), y + f(30));
+            ctx.lineTo(x + f(10), y + f(10));
+            ctx.lineTo(x + f(30), y + f(10));
+            ctx.lineTo(x + f(30), y + f(20));
+            ctx.moveTo(x + f(20), y + f(20));
+            ctx.lineTo(x + f(40), y + f(20));
+            ctx.lineTo(x + f(40), y + f(40));
+            ctx.lineTo(x + f(20), y + f(40));
+            ctx.lineTo(x + f(20), y + f(20));
+            ctx.stroke();
+        }
+
+        function positionOver(event, leftIndent) {
+            const rect = canvas.getBoundingClientRect();
+            const x = (event.clientX - rect.left) / rect.width * canvas.width;
+            const y = (event.clientY - rect.top) / rect.height * canvas.height;
+            return x >= canvas.width - f(leftIndent) && x <= canvas.width - f(leftIndent - 50) && y >= canvas.height - f(60) && y <= canvas.height - f(10);
+        }
+
+        async function copyImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1365;
+            const ctx = canvas.getContext('2d');
+            drawVoxPop(ctx, 1024, 1365);
+            const blob = await new Promise(resolve => canvas.toBlob(resolve));
+            const item = new ClipboardItem({ 'image/png': blob });
+            await navigator.clipboard.write([item]);
+        }
+
+        function saveImage() {
+            const canvas = document.createElement('canvas');
+            canvas.width = 1024;
+            canvas.height = 1365;
+            const ctx = canvas.getContext('2d');
+            drawVoxPop(ctx, 1024, 1365);
+            canvas.toBlob(blob => {
+                const link = document.createElement('a');
+                link.href = URL.createObjectURL(blob);
+                link.download = `voxpop-${id}.png`;
+                link.click();
+                URL.revokeObjectURL(link.href);
+            });
+        }
+
+        function cropToSquare(img) {
+            const width = img.width;
+            const height = img.height;
+            const size = Math.min(width, height);
+            const x = (width - size) / 2;
+            const y = (height - size) / 2;
+            const canvas = document.createElement('canvas');
+            canvas.width = size;
+            canvas.height = size;
+            const ctx = canvas.getContext('2d');
+            ctx.drawImage(img, x, y, size, size, 0, 0, size, size);
+            const newImg = new Image();
+            newImg.onload = () => {
+                image = newImg;
+                redrawCanvas();
+            };
+            newImg.src = canvas.toDataURL();
+            return newImg;
+        }
+
+        function handleFileLoad(file) {
+            if (!file.type.startsWith('image/')) return alert('Invalid file type');
+            const img = new Image();
+            img.onload = () => cropToSquare(img);
+            img.src = URL.createObjectURL(file);
+            firstName.focus();
+        }
+
+        function handleOpen() {
+            const input = document.createElement('input');
+            input.type = 'file';
+            input.accept = 'image/*';
+            input.onchange = (e) => {
+                const file = e.target.files?.[0];
+                if (file) handleFileLoad(file);
+            };
+            input.click();
+        }
+
+        function handlePaste(event) {
+            const items = event.clipboardData?.items;
+            if (!items) return;
+            for (const item of items) {
+                if (item.type.startsWith('image/')) {
+                    const file = item.getAsFile();
+                    if (file) handleFileLoad(file);
+                    break;
+                }
+            }
+        }
+
+        const handleDrop = (event) => {
+            event.preventDefault();
+            const file = event.dataTransfer?.files[0];
+            if (file) handleFileLoad(file);
+        };
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('load', resizeCanvas);
+        document.addEventListener('contextmenu', function(event) { event.preventDefault(); });
+        document.addEventListener('paste', (e) => handlePaste(e));
+        canvas.addEventListener('dragover', (e) => e.preventDefault());
+        canvas.addEventListener('drop', (e) => handleDrop(e));
+        canvas.addEventListener('pointerdown', (e) => {
+            if (image === null) {
+                handleOpen();
+                return;
+            }
+            if (positionOver(e, 120)) copyImage();
+            if (positionOver(e, 60)) saveImage();
+        });
+        response.addEventListener('input', () => {
+            response.value = response.value.replace(/\n/g, '');
+            drawAllText();
+        });
+        firstName.addEventListener('input', () => drawAllText());
+        occupation.addEventListener('input', () => drawAllText());
+
+        firstName.value = '';
+        occupation.value = '';
+        response.value = '';
+
+        firstName.focus();
+    </script>
+</body>
+</html>
