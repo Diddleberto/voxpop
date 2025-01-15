@@ -1,2 +1,2 @@
 # voxpop
-Generates 'vox pop' response images from an image and text
+Generates 'vox pop' response images from images and text. 
